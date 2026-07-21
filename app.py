@@ -680,7 +680,7 @@ with tab_plan:
         "ACCOUNTS":        st.column_config.TextColumn("ACCOUNTS",        width="small"),
         "BRIEFING CRA":    st.column_config.DateColumn("BRIEFING CRA"),
         "DEBRIEF":         st.column_config.DateColumn("DEBRIEF"),
-        "PIT STOP":        st.column_config.DatetimeColumn("PIT STOP",     width="medium"),
+        "PIT STOP":        st.column_config.TextColumn("PIT STOP",        width="medium"),
         "% D'AVANCEMENT":  st.column_config.ProgressColumn(
                                "% D'AVANCEMENT", min_value=0, max_value=100, format="%d%%"
                            ),
