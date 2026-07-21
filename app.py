@@ -648,23 +648,23 @@ with tab_plan:
     DISPLAY_COLS = ["CLIENT", "JOB"] + EDITABLE_COLS + ["COMPLETED"]
 
     col_cfg = {
-        "CLIENT":          st.column_config.TextColumn("CLIENT",      disabled=True, width="medium"),
-        "JOB":             st.column_config.TextColumn("JOB",         width="large"),
-        "TEAM CREA 1":     st.column_config.TextColumn("Team Créa 1", width="medium"),
-        "TEAM CREA 2":     st.column_config.TextColumn("Team Créa 2", width="medium"),
-        "ACCOUNTS":        st.column_config.TextColumn("Accounts",    width="small"),
-        "BRIEFING CRA":    st.column_config.DateColumn("Briefing CRA"),
-        "DEBRIEF":         st.column_config.DateColumn("Debrief"),
-        "PIT STOP":        st.column_config.TextColumn("Pit Stop",    width="small"),
+        "CLIENT":          st.column_config.TextColumn("CLIENT",          disabled=True, width="medium"),
+        "JOB":             st.column_config.TextColumn("JOB",             width="large"),
+        "TEAM CREA 1":     st.column_config.TextColumn("TEAM CREA 1",     width="medium"),
+        "TEAM CREA 2":     st.column_config.TextColumn("TEAM CREA 2",     width="medium"),
+        "ACCOUNTS":        st.column_config.TextColumn("ACCOUNTS",        width="small"),
+        "BRIEFING CRA":    st.column_config.DateColumn("BRIEFING CRA"),
+        "DEBRIEF":         st.column_config.DateColumn("DEBRIEF"),
+        "PIT STOP":        st.column_config.TextColumn("PIT STOP",        width="small"),
         "% D'AVANCEMENT":  st.column_config.ProgressColumn(
-                               "% Avancement", min_value=0, max_value=100, format="%d%%"
+                               "% D'AVANCEMENT", min_value=0, max_value=100, format="%d%%"
                            ),
-        "DEADLINE":        st.column_config.DateColumn("Deadline"),
-        "PREZ CLIENT":     st.column_config.DateColumn("Prés. Client"),
+        "DEADLINE":        st.column_config.DateColumn("DEADLINE"),
+        "PREZ CLIENT":     st.column_config.DateColumn("PREZ CLIENT"),
         "ETAT CREA":       st.column_config.SelectboxColumn(
-                               "État Créa", options=ETAT_OPTIONS, width="medium"
+                               "ETAT CREA", options=ETAT_OPTIONS, width="medium"
                            ),
-        "OBSERVATIONS":    st.column_config.TextColumn("Observations", width="large"),
+        "OBSERVATIONS":    st.column_config.TextColumn("OBSERVATIONS",    width="large"),
         "COMPLETED":       st.column_config.CheckboxColumn("✅ Done"),
     }
 
