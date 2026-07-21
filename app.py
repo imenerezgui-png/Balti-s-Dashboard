@@ -56,6 +56,20 @@ ALL_COLS  = ["id", "CLIENT", "JOB"] + EDITABLE_COLS + ["COMPLETED"]
 
 ETAT_OPTIONS = ["EN COURS", "ATT BAT", "BAT OK", "COMPLETED", "ANNULÉ"]
 
+CREA_NAMES = [
+    "MOHAMED BALTI", "NOUSSAIER BANNENI", "BILEL KTHIRI", "YASMINE BEN AYED",
+    "SELMA ZAFRANE", "ACHREF ELBANNA", "RACEM MTIMET", "MOUNA GUEDRIA",
+    "AMEN ALLAH BEN FRADJ", "MAHDI CHEBBI", "TAHER MABROUK", "KODS ZARROUK",
+    "HABIB BARBOUCHE", "BASSEM JALLELI", "AHMED NASRI", "MOHAMED ALI FATTOUCHI",
+    "BECHIR BEN MILED", "EMNA THABET", "ARIJ MEKKI", "MUSTAPHA HAOUEM",
+    "MOHAMED AZIZ BACCAR", "MOHAMED BILEL EL BEZ", "KHALIL BEN BARAKET",
+]
+
+ACCOUNTING_NAMES = [
+    "HOUSSEM EL EUSHI", "ASMA KBAIER", "GHAZI DALY", "ZEINEB BOUASSIDA",
+    "HOUSSEM ZRELLY", "NOUR MARZOUK", "TAKWA GHBARA", "LATIFA BELHADJ HMIDA",
+]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Theme palette
 # ─────────────────────────────────────────────────────────────────────────────
@@ -592,9 +606,9 @@ with tab_plan:
             new_job    = c2.text_input("JOB *")
 
             c3, c4, c5 = st.columns(3)
-            new_tc1  = c3.text_input("TEAM CREA 1")
-            new_tc2  = c4.text_input("TEAM CREA 2")
-            new_acc  = c5.text_input("ACCOUNTS")
+            new_tc1_sel = c3.multiselect("TEAM CREA 1", CREA_NAMES)
+            new_tc2_sel = c4.multiselect("TEAM CREA 2", CREA_NAMES)
+            new_acc_sel = c5.multiselect("ACCOUNTS", ACCOUNTING_NAMES)
 
             c6, c7, c8 = st.columns(3)
             new_brief   = c6.date_input("BRIEFING CRA",  value=None)
@@ -622,9 +636,9 @@ with tab_plan:
                     "id":              str(uuid.uuid4())[:8],
                     "CLIENT":          new_client.strip(),
                     "JOB":             new_job.strip(),
-                    "TEAM CREA 1":     new_tc1.strip(),
-                    "TEAM CREA 2":     new_tc2.strip(),
-                    "ACCOUNTS":        new_acc.strip(),
+                    "TEAM CREA 1":     " / ".join(new_tc1_sel),
+                    "TEAM CREA 2":     " / ".join(new_tc2_sel),
+                    "ACCOUNTS":        " / ".join(new_acc_sel),
                     "BRIEFING CRA":    str(new_brief)  if new_brief  else None,
                     "DEBRIEF":         str(new_debrief) if new_debrief else None,
                     "PIT STOP":        new_pit.strip(),
