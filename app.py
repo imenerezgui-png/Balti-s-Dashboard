@@ -611,18 +611,29 @@ with tab_plan:
             new_acc_sel = c5.multiselect("ACCOUNTS", ACCOUNTING_NAMES)
 
             c6, c7, c8 = st.columns(3)
-            new_brief   = c6.date_input("BRIEFING CRA",  value=None)
-            new_debrief = c7.date_input("DEBRIEF",        value=None)
-            new_dl      = c8.date_input("DEADLINE",       value=None)
+            with c6:
+                new_brief_d = st.date_input("BRIEFING CRA", value=None, key="d_brief")
+                new_brief_t = st.time_input("Heure", value=None, key="t_brief", label_visibility="collapsed")
+            with c7:
+                new_debrief_d = st.date_input("DEBRIEF", value=None, key="d_debrief")
+                new_debrief_t = st.time_input("Heure", value=None, key="t_debrief", label_visibility="collapsed")
+            with c8:
+                new_pit_d = st.date_input("PIT STOP", value=None, key="d_pit")
+                new_pit_t = st.time_input("Heure", value=None, key="t_pit", label_visibility="collapsed")
 
-            c9, c10 = st.columns(2)
-            new_prez = c9.date_input("PREZ CLIENT", value=None)
-            new_pct  = c10.number_input("% D'AVANCEMENT", 0, 100, 0)
+            c9, c10, c_pct_col = st.columns(3)
+            with c9:
+                new_dl_d = st.date_input("DEADLINE", value=None, key="d_dl")
+                new_dl_t = st.time_input("Heure", value=None, key="t_dl", label_visibility="collapsed")
+            with c10:
+                new_prez_d = st.date_input("PREZ CLIENT", value=None, key="d_prez")
+                new_prez_t = st.time_input("Heure", value=None, key="t_prez", label_visibility="collapsed")
+            with c_pct_col:
+                new_pct = st.number_input("% D'AVANCEMENT", 0, 100, 0)
 
             c11, c12 = st.columns(2)
             new_etat = c11.selectbox("ETAT CREA", ETAT_OPTIONS)
-            new_pit  = c12.text_input("PIT STOP")
-            new_obs  = st.text_area("OBSERVATIONS")
+            new_obs  = c12.text_area("OBSERVATIONS")
 
             submitted = st.form_submit_button(
                 "➕  Add Job", type="primary", width='stretch'
@@ -639,12 +650,12 @@ with tab_plan:
                     "TEAM CREA 1":     " / ".join(new_tc1_sel),
                     "TEAM CREA 2":     " / ".join(new_tc2_sel),
                     "ACCOUNTS":        " / ".join(new_acc_sel),
-                    "BRIEFING CRA":    str(new_brief)  if new_brief  else None,
-                    "DEBRIEF":         str(new_debrief) if new_debrief else None,
-                    "PIT STOP":        new_pit.strip(),
+                    "BRIEFING CRA":    f"{new_brief_d} {new_brief_t}"   if new_brief_d  else None,
+                    "DEBRIEF":         f"{new_debrief_d} {new_debrief_t}" if new_debrief_d else None,
+                    "PIT STOP":        f"{new_pit_d} {new_pit_t}"        if new_pit_d    else None,
                     "% D'AVANCEMENT":  int(new_pct),
-                    "DEADLINE":        str(new_dl)    if new_dl    else None,
-                    "PREZ CLIENT":     str(new_prez)  if new_prez  else None,
+                    "DEADLINE":        f"{new_dl_d} {new_dl_t}"          if new_dl_d     else None,
+                    "PREZ CLIENT":     f"{new_prez_d} {new_prez_t}"      if new_prez_d   else None,
                     "ETAT CREA":       new_etat,
                     "OBSERVATIONS":    new_obs.strip(),
                     "COMPLETED":       False,
@@ -669,7 +680,7 @@ with tab_plan:
         "ACCOUNTS":        st.column_config.TextColumn("ACCOUNTS",        width="small"),
         "BRIEFING CRA":    st.column_config.DateColumn("BRIEFING CRA"),
         "DEBRIEF":         st.column_config.DateColumn("DEBRIEF"),
-        "PIT STOP":        st.column_config.TextColumn("PIT STOP",        width="small"),
+        "PIT STOP":        st.column_config.DatetimeColumn("PIT STOP",     width="medium"),
         "% D'AVANCEMENT":  st.column_config.ProgressColumn(
                                "% D'AVANCEMENT", min_value=0, max_value=100, format="%d%%"
                            ),
