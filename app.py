@@ -703,23 +703,25 @@ with tab_plan:
     # Build grid options
     gob = GridOptionsBuilder.from_dataframe(grid_df)
 
-    # Global defaults: sortable, resizable, editable, Excel-style set filter on every column
+    # Global defaults: sortable, resizable, editable, text filter with floating row
     gob.configure_default_column(
         editable=True,
         sortable=True,
         resizable=True,
-        filter="agSetColumnFilter",   # <-- Excel-style checkbox list
-        floatingFilter=False,          # no separate filter row — accessed via column menu
+        filter="agTextColumnFilter",   # community-edition filter
+        floatingFilter=True,             # <-- filter row directly under each header
+        filterParams={"buttons": ["reset", "apply"], "closeOnApply": True},
         menuTabs=["filterMenuTab", "generalMenuTab", "columnsMenuTab"],
     )
 
     # Per-column overrides
-    gob.configure_column("CLIENT", editable=False, pinned="left", width=140)
-    gob.configure_column("JOB", width=220)
-    gob.configure_column("TEAM CREA 1", width=140)
-    gob.configure_column("TEAM CREA 2", width=140)
-    gob.configure_column("ACCOUNTS", width=110)
-    gob.configure_column("BRIEFING CRA", width=125)
+    gob.configure_column("CLIENT", editable=False, pinned="left", width=140,
+                          filter="agTextColumnFilter")
+    gob.configure_column("JOB", width=220, filter="agTextColumnFilter")
+    gob.configure_column("TEAM CREA 1", width=140, filter="agTextColumnFilter")
+    gob.configure_column("TEAM CREA 2", width=140, filter="agTextColumnFilter")
+    gob.configure_column("ACCOUNTS", width=110, filter="agTextColumnFilter")
+    gob.configure_column("BRIEFING CRA", width=125, filter="agDateColumnFilter")
     gob.configure_column(
         "DEBRIEF",
         editable=False,
@@ -738,9 +740,10 @@ with tab_plan:
             }
         """),
     )
-    gob.configure_column("PIT STOP", width=140)
+    gob.configure_column("PIT STOP", width=140, filter="agTextColumnFilter")
     gob.configure_column(
         "% D'AVANCEMENT", width=120, type=["numericColumn"],
+        filter="agNumberColumnFilter",
         cellStyle=JsCode("""
             function(params) {
                 const v = params.value;
@@ -752,8 +755,8 @@ with tab_plan:
             }
         """),
     )
-    gob.configure_column("DEADLINE", width=125)
-    gob.configure_column("PREZ CLIENT", width=125)
+    gob.configure_column("DEADLINE", width=125, filter="agDateColumnFilter")
+    gob.configure_column("PREZ CLIENT", width=125, filter="agDateColumnFilter")
     gob.configure_column(
         "ETAT CREA", width=130,
         cellEditor="agSelectCellEditor",
@@ -767,6 +770,7 @@ with tab_plan:
         domLayout="normal",
         rowHeight=36,
         headerHeight=42,
+        floatingFiltersHeight=34,
         suppressMovableColumns=False,
         animateRows=True,
     )
@@ -806,8 +810,23 @@ with tab_plan:
             "background-color": "#1a1a1a !important",
             "color": "#f0f0f0 !important",
         },
-        ".ag-icon-menu": {
+        ".ag-icon-menu, .ag-icon-filter": {
             "color": f"{RED} !important",
+        },
+        ".ag-floating-filter": {
+            "background-color": "#1e0508 !important",
+            "border-top": "1px solid #2a2a2a !important",
+        },
+        ".ag-floating-filter-input input, .ag-input-field-input": {
+            "background-color": "#161616 !important",
+            "color": "#f0f0f0 !important",
+            "border": "1px solid #333 !important",
+            "border-radius": "4px !important",
+            "padding": "3px 6px !important",
+            "font-size": "12px !important",
+        },
+        ".ag-floating-filter-input input::placeholder": {
+            "color": "#666 !important",
         },
     }
 
