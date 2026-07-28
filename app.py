@@ -703,24 +703,25 @@ with tab_plan:
     # Build grid options
     gob = GridOptionsBuilder.from_dataframe(grid_df)
 
-    # Global defaults: sortable, resizable, editable, Excel-style Set filter
+    # Global defaults: sortable, resizable, editable, community text filter
     gob.configure_default_column(
         editable=True,
         sortable=True,
         resizable=True,
-        filter="agSetColumnFilter",      # <-- Excel-style checkbox list (Enterprise)
-        floatingFilter=True,               # small live-search input under each header
+        filter="agTextColumnFilter",
+        floatingFilter=True,
+        filterParams={"buttons": ["reset", "apply"], "closeOnApply": True, "debounceMs": 200},
         menuTabs=["filterMenuTab", "generalMenuTab", "columnsMenuTab"],
     )
 
     # Per-column overrides
     gob.configure_column("CLIENT", editable=False, pinned="left", width=140,
-                          filter="agSetColumnFilter")
-    gob.configure_column("JOB", width=220, filter="agSetColumnFilter")
-    gob.configure_column("TEAM CREA 1", width=140, filter="agSetColumnFilter")
-    gob.configure_column("TEAM CREA 2", width=140, filter="agSetColumnFilter")
-    gob.configure_column("ACCOUNTS", width=110, filter="agSetColumnFilter")
-    gob.configure_column("BRIEFING CRA", width=125, filter="agSetColumnFilter")
+                          filter="agTextColumnFilter")
+    gob.configure_column("JOB", width=220, filter="agTextColumnFilter")
+    gob.configure_column("TEAM CREA 1", width=140, filter="agTextColumnFilter")
+    gob.configure_column("TEAM CREA 2", width=140, filter="agTextColumnFilter")
+    gob.configure_column("ACCOUNTS", width=110, filter="agTextColumnFilter")
+    gob.configure_column("BRIEFING CRA", width=125, filter="agTextColumnFilter")
     gob.configure_column(
         "DEBRIEF",
         editable=False,
@@ -739,10 +740,10 @@ with tab_plan:
             }
         """),
     )
-    gob.configure_column("PIT STOP", width=140, filter="agSetColumnFilter")
+    gob.configure_column("PIT STOP", width=140, filter="agTextColumnFilter")
     gob.configure_column(
         "% D'AVANCEMENT", width=120, type=["numericColumn"],
-        filter="agSetColumnFilter",
+        filter="agNumberColumnFilter",
         cellStyle=JsCode("""
             function(params) {
                 const v = params.value;
@@ -754,8 +755,8 @@ with tab_plan:
             }
         """),
     )
-    gob.configure_column("DEADLINE", width=125, filter="agSetColumnFilter")
-    gob.configure_column("PREZ CLIENT", width=125, filter="agSetColumnFilter")
+    gob.configure_column("DEADLINE", width=125, filter="agTextColumnFilter")
+    gob.configure_column("PREZ CLIENT", width=125, filter="agTextColumnFilter")
     gob.configure_column(
         "ETAT CREA", width=130,
         cellEditor="agSelectCellEditor",
@@ -857,7 +858,6 @@ with tab_plan:
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
-        enable_enterprise_modules=True,   # <-- enables agSetColumnFilter (Excel-style)
         theme="alpine-dark",
         custom_css=custom_css,
         height=520,
