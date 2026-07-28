@@ -404,11 +404,11 @@ def _parse_debriefs(v) -> list[str]:
 
 
 def _debrief_display(v) -> str:
-    """Format debriefs as '#1: date | #2: date ...' for table display."""
+    """Format debriefs one per line: '#1 — date\n#2 — date ...' for table display."""
     items = _parse_debriefs(v)
     if not items:
         return ""
-    return "  |  ".join(f"#{i + 1}: {d}" for i, d in enumerate(items))
+    return "\n".join(f"#{i + 1} — {d}" for i, d in enumerate(items))
 
 
 def _prep_editor_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -720,7 +720,24 @@ with tab_plan:
     gob.configure_column("TEAM CREA 2", width=140)
     gob.configure_column("ACCOUNTS", width=110)
     gob.configure_column("BRIEFING CRA", width=125)
-    gob.configure_column("DEBRIEF", editable=False, width=200)
+    gob.configure_column(
+        "DEBRIEF",
+        editable=False,
+        width=210,
+        wrapText=True,
+        autoHeight=True,
+        cellStyle=JsCode("""
+            function(params) {
+                return {
+                    'white-space': 'pre-line',
+                    'line-height': '1.4',
+                    'padding-top': '4px',
+                    'padding-bottom': '4px',
+                    'font-size': '12px',
+                };
+            }
+        """),
+    )
     gob.configure_column("PIT STOP", width=140)
     gob.configure_column(
         "% D'AVANCEMENT", width=120, type=["numericColumn"],
