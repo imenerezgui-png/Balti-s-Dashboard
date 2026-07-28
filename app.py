@@ -14,6 +14,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Page config  (must be first Streamlit call)
@@ -247,60 +248,8 @@ div[data-testid="stButton"] > button[kind="secondary"] {{
 /* ── data editor ────────────────────────────────────────────────── */
 [data-testid="stDataEditor"] {{
     border: 1px solid #2a2a2a;
-    border-top: none;
-    border-radius: 0 0 10px 10px;
+    border-radius: 10px;
     overflow: hidden;
-    margin-top: 0;
-}}
-
-/* ── Excel-style filter header row (fused with table) ───────────── */
-/* Target the container holding our marker span */
-[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) {{
-    background: linear-gradient(180deg, #241016 0%, #1a0509 100%);
-    border: 1px solid #2a2a2a;
-    border-bottom: 2px solid {RED_DARK};
-    border-radius: 10px 10px 0 0;
-    padding: 0 !important;
-    margin: 0 !important;
-    gap: 0 !important;
-}}
-/* Hide the marker itself */
-.filter-header-marker {{ display: none; }}
-/* Zero the gap between filter cells */
-[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="stHorizontalBlock"] {{
-    gap: 0 !important;
-}}
-/* Column dividers between filter cells */
-[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="column"] {{
-    padding: 0 !important;
-    border-right: 1px solid #2a2a2a;
-}}
-[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="column"]:last-child {{
-    border-right: none;
-}}
-/* Style the popover buttons to look like flat header cells */
-[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="stPopover"] > div > button {{
-    background: transparent !important;
-    color: {TEXT} !important;
-    border: none !important;
-    border-radius: 0 !important;
-    font-size: 0.7rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 1px !important;
-    text-transform: uppercase !important;
-    padding: 0.75rem 0.5rem !important;
-    box-shadow: none !important;
-    min-height: 44px !important;
-    width: 100% !important;
-    text-align: left !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    justify-content: flex-start !important;
-}}
-[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="stPopover"] > div > button:hover {{
-    background: rgba(230, 57, 70, 0.18) !important;
-    color: {RED} !important;
 }}
 
 /* ── expander ───────────────────────────────────────────────────── */
@@ -737,114 +686,129 @@ with tab_plan:
                 st.success(f"✅ '{new_job.strip()}' added!")
                 st.rerun()
 
-    # ── Editable table ───────────────────────────────────────────────────────
+    # ── Editable table (AgGrid: Excel-style filters built into column headers) ──
     st.markdown('<div class="section-title">Job Board</div>', unsafe_allow_html=True)
 
     DISPLAY_COLS = ["CLIENT", "JOB"] + EDITABLE_COLS + ["COMPLETED"]
 
-    # ── Excel-style column filters (header-attached) ────────────────────────
-    if "col_filters" not in st.session_state:
-        st.session_state.col_filters = {}
-    col_filters = st.session_state.col_filters
-    active_filter_count = sum(1 for v in col_filters.values() if v)
+    # Prepare display frame: convert DEBRIEF to numbered format, dates to strings
+    grid_df = view[DISPLAY_COLS].copy().reset_index(drop=True)
+    if "DEBRIEF" in grid_df.columns:
+        grid_df["DEBRIEF"] = grid_df["DEBRIEF"].apply(_debrief_display)
+    if "% D'AVANCEMENT" in grid_df.columns:
+        grid_df["% D'AVANCEMENT"] = pd.to_numeric(grid_df["% D'AVANCEMENT"], errors="coerce").fillna(0).astype(int)
+    if "COMPLETED" in grid_df.columns:
+        grid_df["COMPLETED"] = grid_df["COMPLETED"].astype(bool)
 
-    # Tiny "clear all" bar (only if there are active filters)
-    if active_filter_count:
-        c1, _, c3 = st.columns([5, 4, 1.5])
-        with c1:
-            st.markdown(
-                f'<div style="color:{RED};font-size:0.72rem;letter-spacing:2px;'
-                f'text-transform:uppercase;margin:0.2rem 0;font-weight:700;">'
-                f'● {active_filter_count} filter{"s" if active_filter_count != 1 else ""} active</div>',
-                unsafe_allow_html=True,
-            )
-        with c3:
-            if st.button("Clear all", key="clr_all_filters", width='stretch'):
-                st.session_state.col_filters = {}
-                st.rerun()
+    # Build grid options
+    gob = GridOptionsBuilder.from_dataframe(grid_df)
 
-    # Filter row: wrapped in a container we can target via CSS :has(.marker)
-    with st.container():
-        st.markdown('<span class="filter-header-marker"></span>', unsafe_allow_html=True)
-        filter_cols = st.columns(len(DISPLAY_COLS))
-        for i, col in enumerate(DISPLAY_COLS):
-            with filter_cols[i]:
-                active = col in col_filters and col_filters[col]
-                arrow  = "▼" if active else "▽"
-                label  = f"{col}  {arrow}"
-                with st.popover(label, width='stretch'):
-                    series = df[col].fillna("").astype(str)
-                    uniques = sorted({v for v in series if v.strip() not in ("", "None", "nan", "NaT")})
-                    if col == "COMPLETED":
-                        uniques = ["True", "False"]
+    # Global defaults: sortable, resizable, editable, Excel-style set filter on every column
+    gob.configure_default_column(
+        editable=True,
+        sortable=True,
+        resizable=True,
+        filter="agSetColumnFilter",   # <-- Excel-style checkbox list
+        floatingFilter=False,          # no separate filter row — accessed via column menu
+        menuTabs=["filterMenuTab", "generalMenuTab", "columnsMenuTab"],
+    )
 
-                    if len(uniques) > 8:
-                        q = st.text_input("Search", key=f"srch_{col}", label_visibility="collapsed",
-                                           placeholder="Search...")
-                        if q:
-                            uniques = [u for u in uniques if q.lower() in u.lower()]
+    # Per-column overrides
+    gob.configure_column("CLIENT", editable=False, pinned="left", width=140)
+    gob.configure_column("JOB", width=220)
+    gob.configure_column("TEAM CREA 1", width=140)
+    gob.configure_column("TEAM CREA 2", width=140)
+    gob.configure_column("ACCOUNTS", width=110)
+    gob.configure_column("BRIEFING CRA", width=125)
+    gob.configure_column("DEBRIEF", editable=False, width=200)
+    gob.configure_column("PIT STOP", width=140)
+    gob.configure_column(
+        "% D'AVANCEMENT", width=120, type=["numericColumn"],
+        cellStyle=JsCode("""
+            function(params) {
+                const v = params.value;
+                let bg;
+                if (v >= 100) { bg = '#27ae60'; }
+                else if (v >= 60) { bg = '#e67e22'; }
+                else { bg = '#e63946'; }
+                return {'background': bg, 'color': 'white', 'textAlign': 'center', 'fontWeight': '700'};
+            }
+        """),
+    )
+    gob.configure_column("DEADLINE", width=125)
+    gob.configure_column("PREZ CLIENT", width=125)
+    gob.configure_column(
+        "ETAT CREA", width=130,
+        cellEditor="agSelectCellEditor",
+        cellEditorParams={"values": ETAT_OPTIONS},
+    )
+    gob.configure_column("OBSERVATIONS", width=200)
+    gob.configure_column("COMPLETED", header_name="✅ Done", width=90, cellRenderer="agCheckboxCellRenderer")
 
-                    current = col_filters.get(col, [])
-                    selected = st.multiselect(
-                        col, uniques, default=current,
-                        key=f"flt_{col}", label_visibility="collapsed",
-                    )
-                    b1, b2 = st.columns(2)
-                    with b1:
-                        if st.button("Apply", key=f"apply_{col}", type="primary", width='stretch'):
-                            if selected:
-                                col_filters[col] = selected
-                            else:
-                                col_filters.pop(col, None)
-                            st.session_state.col_filters = col_filters
-                            st.rerun()
-                    with b2:
-                        if st.button("Clear", key=f"clear_{col}", width='stretch'):
-                            col_filters.pop(col, None)
-                            st.session_state.col_filters = col_filters
-                            st.rerun()
+    # Grid-wide options: dark theme, header height, row selection off, side bar closed
+    gob.configure_grid_options(
+        domLayout="normal",
+        rowHeight=36,
+        headerHeight=42,
+        suppressMovableColumns=False,
+        animateRows=True,
+    )
 
-    # Apply column filters to the view
-    for col, vals in col_filters.items():
-        if not vals:
-            continue
-        if col == "COMPLETED":
-            wanted = [v == "True" for v in vals]
-            view = view[view["COMPLETED"].astype(bool).isin(wanted)]
-        else:
-            view = view[view[col].fillna("").astype(str).isin(vals)]
+    grid_options = gob.build()
 
-    col_cfg = {
-        "CLIENT":          st.column_config.TextColumn("CLIENT",          disabled=True, width="medium"),
-        "JOB":             st.column_config.TextColumn("JOB",             width="large"),
-        "TEAM CREA 1":     st.column_config.TextColumn("TEAM CREA 1",     width="medium"),
-        "TEAM CREA 2":     st.column_config.TextColumn("TEAM CREA 2",     width="medium"),
-        "ACCOUNTS":        st.column_config.TextColumn("ACCOUNTS",        width="small"),
-        "BRIEFING CRA":    st.column_config.DateColumn("BRIEFING CRA"),
-        "DEBRIEF":         st.column_config.TextColumn("DEBRIEF", width="large", disabled=True),
-        "PIT STOP":        st.column_config.TextColumn("PIT STOP",        width="medium"),
-        "% D'AVANCEMENT":  st.column_config.ProgressColumn(
-                               "% D'AVANCEMENT", min_value=0, max_value=100, format="%d%%"
-                           ),
-        "DEADLINE":        st.column_config.DateColumn("DEADLINE"),
-        "PREZ CLIENT":     st.column_config.DateColumn("PREZ CLIENT"),
-        "ETAT CREA":       st.column_config.SelectboxColumn(
-                               "ETAT CREA", options=ETAT_OPTIONS, width="medium"
-                           ),
-        "OBSERVATIONS":    st.column_config.TextColumn("OBSERVATIONS",    width="large"),
-        "COMPLETED":       st.column_config.CheckboxColumn("✅ Done"),
+    # Custom CSS injected into the grid to match dashboard theme
+    custom_css = {
+        ".ag-theme-alpine-dark": {
+            "--ag-background-color": "#161616",
+            "--ag-foreground-color": "#f0f0f0",
+            "--ag-header-background-color": "#241016",
+            "--ag-header-foreground-color": "#f0f0f0",
+            "--ag-odd-row-background-color": "#1a1a1a",
+            "--ag-row-hover-color": "rgba(230,57,70,0.12)",
+            "--ag-border-color": "#2a2a2a",
+            "--ag-header-column-separator-color": "#2a2a2a",
+            "--ag-selected-row-background-color": "rgba(230,57,70,0.25)",
+            "--ag-font-family": "'Segoe UI', system-ui, sans-serif",
+            "--ag-font-size": "13px",
+        },
+        ".ag-header-cell": {
+            "font-weight": "700 !important",
+            "letter-spacing": "0.5px",
+            "text-transform": "uppercase",
+            "font-size": "0.72rem !important",
+        },
+        ".ag-header": {
+            "border-bottom": f"2px solid {RED_DARK} !important",
+        },
+        ".ag-menu": {
+            "background-color": "#1a1a1a !important",
+            "border": "1px solid #2e2e2e !important",
+            "color": "#f0f0f0 !important",
+        },
+        ".ag-filter, .ag-set-filter": {
+            "background-color": "#1a1a1a !important",
+            "color": "#f0f0f0 !important",
+        },
+        ".ag-icon-menu": {
+            "color": f"{RED} !important",
+        },
     }
 
-    editor_df = _prep_editor_df(view[DISPLAY_COLS].reset_index(drop=True))
-
-    edited_df = st.data_editor(
-        editor_df,
-        column_config=col_cfg,
-        width='stretch',
-        num_rows="fixed",
-        hide_index=True,
-        key="data_editor",
+    grid_response = AgGrid(
+        grid_df,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        data_return_mode=DataReturnMode.AS_INPUT,
+        fit_columns_on_grid_load=False,
+        allow_unsafe_jscode=True,
+        theme="alpine-dark",
+        custom_css=custom_css,
+        height=520,
+        key="aggrid_board",
+        reload_data=False,
     )
+
+    edited_df = pd.DataFrame(grid_response["data"])
 
     # ── Action buttons ───────────────────────────────────────────────────────
     btn_cols = st.columns([1, 1.6, 1.6, 3])
