@@ -720,7 +720,11 @@ with tab_plan:
         num_rows="fixed",
         hide_index=True,
         key="data_editor",
+        on_select="rerun",
+        selection_mode="single-row",
     )
+    edited_df = edited.data
+    selected_rows = edited.selection.rows
 
     # ── Action buttons ───────────────────────────────────────────────────────
     btn_cols = st.columns([1, 1.6, 1.6, 3])
@@ -730,7 +734,7 @@ with tab_plan:
             orig_indices = view.index.tolist()
             for i, orig_idx in enumerate(orig_indices):
                 for col in DISPLAY_COLS:
-                    val = edited.iloc[i][col]
+                    val = edited_df.iloc[i][col]
                     # convert date objects back to strings
                     if isinstance(val, date):
                         val = val.isoformat()
@@ -756,7 +760,7 @@ with tab_plan:
         if st.button("↩  Unmark Selected", width='stretch'):
             orig_indices = view.index.tolist()
             for i, orig_idx in enumerate(orig_indices):
-                if edited.iloc[i]["COMPLETED"]:
+                if edited_df.iloc[i]["COMPLETED"]:
                     df.at[orig_idx, "COMPLETED"] = False
                     if df.at[orig_idx, "ETAT CREA"] == "COMPLETED":
                         df.at[orig_idx, "ETAT CREA"] = "EN COURS"
@@ -764,51 +768,72 @@ with tab_plan:
             save_data(df)
             st.rerun()
 
-    # ── Add Debrief ───────────────────────────────────────────────────────────
-    with st.expander("📋  Add Debrief", expanded=False):
-        active = df[(df["CLIENT"].fillna("") != "") | (df["JOB"].fillna("") != "")].copy()
-        active["_label"] = active["CLIENT"].fillna("") + "  —  " + active["JOB"].fillna("")
-        active["_count"] = active["DEBRIEF"].apply(lambda v: len(_parse_debriefs(v)))
+    # ── Debrief panel (appears when a row is clicked) ───────────────────────
+    if selected_rows:
+        sel_view_idx = selected_rows[0]
+        orig_idx     = view.index[sel_view_idx]
+        row          = df.loc[orig_idx]
+        existing     = _parse_debriefs(row["DEBRIEF"])
+        count        = len(existing)
 
-        if len(active) == 0:
-            st.info("No jobs yet.")
-        else:
-            job_labels = active["_label"].tolist()
-            sel_label  = st.selectbox("Select Job", job_labels, key="debrief_job_sel")
-            sel_row    = active[active["_label"] == sel_label].iloc[0]
-            count      = int(sel_row["_count"])
+        st.markdown(
+            f'<div style="margin:1rem 0 0.6rem 0;padding:0.7rem 1.2rem;'
+            f'background:linear-gradient(90deg,#1a0508,#1e1e1e);'
+            f'border:1px solid #2e2e2e;border-left:3px solid {RED};border-radius:10px;">'
+            f'<span style="color:{DIM};font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;">'
+            f'Selected job</span><br>'
+            f'<span style="font-weight:700;font-size:1rem;color:{TEXT};">'
+            f'{row["CLIENT"]}  —  {row["JOB"]}</span>'
+            f'<span style="float:right;color:{RED};font-weight:800;font-size:1.1rem;">'
+            f'{count} debrief{"s" if count != 1 else ""}</span></div>',
+            unsafe_allow_html=True,
+        )
+        if count >= 3:
+            st.warning(f"⚠️ {count} debriefs logged — consider stopping further requests from this client.")
 
-            # Show existing debriefs
-            existing = _parse_debriefs(sel_row["DEBRIEF"])
-            if existing:
-                debrief_lines = "  \n".join(
-                    f"**#{i+1}** — {d}" for i, d in enumerate(existing)
-                )
-                st.markdown(
-                    f'<div style="background:#1a1a1a;border:1px solid #2e2e2e;border-left:3px solid #e63946;'
-                    f'border-radius:8px;padding:0.8rem 1rem;font-size:0.85rem;">'
-                    f'{debrief_lines.replace(chr(10), "<br>")}</div>',
-                    unsafe_allow_html=True,
-                )
-                if count >= 3:
-                    st.warning(f"⚠️ {count} debriefs logged — consider stopping further requests.")
+        tab_modify, tab_add = st.tabs(["  ✏️  Modify a Debrief  ", "  ➕  Add a New Debrief  "])
+
+        with tab_modify:
+            if not existing:
+                st.info("No debriefs recorded yet for this job.")
             else:
-                st.caption("No debriefs logged yet for this job.")
+                options = [f"#{i + 1}  —  {d}" for i, d in enumerate(existing)]
+                sel_opt = st.selectbox("Which debrief?", options, key="mod_sel")
+                sel_i   = options.index(sel_opt)
+                current = existing[sel_i]
+                try:
+                    dt_obj   = datetime.strptime(current[:16], "%Y-%m-%d %H:%M")
+                    init_d   = dt_obj.date()
+                    init_t   = dt_obj.time()
+                except ValueError:
+                    init_d, init_t = None, None
 
-            st.markdown(f"**Add Debrief #{count + 1}**")
-            dcol1, dcol2 = st.columns(2)
-            new_db_date = dcol1.date_input("Date", key="db_date")
-            new_db_time = dcol2.time_input("Heure", key="db_time")
+                mc1, mc2 = st.columns(2)
+                mod_date = mc1.date_input("New date", value=init_d, key="mod_d")
+                mod_time = mc2.time_input("New time", value=init_t, key="mod_t")
 
-            if st.button(f"➕  Log Debrief #{count + 1}", type="primary"):
-                new_entry = f"{new_db_date} {new_db_time}"
-                orig_idx  = sel_row.name
-                updated   = existing + [new_entry]
-                df.at[orig_idx, "DEBRIEF"] = ";".join(updated)
+                if st.button("Save changes", type="primary", key="btn_mod"):
+                    existing[sel_i] = f"{mod_date} {mod_time}"
+                    df.at[orig_idx, "DEBRIEF"] = ";".join(existing)
+                    st.session_state.df = df
+                    save_data(df)
+                    st.success(f"Debrief #{sel_i + 1} updated!")
+                    st.rerun()
+
+        with tab_add:
+            ac1, ac2 = st.columns(2)
+            new_db_date = ac1.date_input("Date", key="add_db_d")
+            new_db_time = ac2.time_input("Heure", key="add_db_t")
+
+            if st.button(f"➕  Log Debrief #{count + 1}", type="primary", key="btn_add_db"):
+                existing.append(f"{new_db_date} {new_db_time}")
+                df.at[orig_idx, "DEBRIEF"] = ";".join(existing)
                 st.session_state.df = df
                 save_data(df)
-                st.success(f"Debrief #{len(updated)} logged for '{sel_row['JOB']}'.")
+                st.success(f"Debrief #{len(existing)} logged!")
                 st.rerun()
+    else:
+        st.caption("📌  Click any row to manage its debriefs.")
 
     # ── Delete completed ──────────────────────────────────────────────────────
     with st.expander("🗑  Danger Zone", expanded=False):
