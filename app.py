@@ -690,6 +690,80 @@ with tab_plan:
 
     DISPLAY_COLS = ["CLIENT", "JOB"] + EDITABLE_COLS + ["COMPLETED"]
 
+    # ── Excel-style column filters ──────────────────────────────────────────
+    if "col_filters" not in st.session_state:
+        st.session_state.col_filters = {}
+    col_filters = st.session_state.col_filters
+
+    active_filter_count = sum(1 for v in col_filters.values() if v)
+    filter_hdr_c1, filter_hdr_c2 = st.columns([6, 1])
+    with filter_hdr_c1:
+        st.markdown(
+            f'<div style="color:{DIM};font-size:0.72rem;letter-spacing:2.5px;'
+            f'text-transform:uppercase;margin:0.2rem 0 0.4rem 0;">'
+            f'▾ Column Filters '
+            f'<span style="color:{RED};font-weight:700;">'
+            f'{("(" + str(active_filter_count) + " active)") if active_filter_count else ""}'
+            f'</span></div>',
+            unsafe_allow_html=True,
+        )
+    with filter_hdr_c2:
+        if active_filter_count and st.button("Clear all", key="clr_all_filters", width='stretch'):
+            st.session_state.col_filters = {}
+            st.rerun()
+
+    # Build filter row: one popover per column
+    filter_cols = st.columns(len(DISPLAY_COLS))
+    for i, col in enumerate(DISPLAY_COLS):
+        with filter_cols[i]:
+            active = col in col_filters and col_filters[col]
+            arrow  = "🔻" if active else "▽"
+            short  = col.replace(" ", "\u00a0")[:12]
+            label  = f"{arrow} {short}"
+            with st.popover(label, width='stretch'):
+                # unique values in this column
+                series = df[col].fillna("").astype(str)
+                uniques = sorted({v for v in series if v.strip() not in ("", "None", "nan", "NaT")})
+                if col == "COMPLETED":
+                    uniques = ["True", "False"]
+
+                # search box for long lists
+                if len(uniques) > 8:
+                    q = st.text_input("Search", key=f"srch_{col}", label_visibility="collapsed",
+                                       placeholder="Search...")
+                    if q:
+                        uniques = [u for u in uniques if q.lower() in u.lower()]
+
+                current = col_filters.get(col, [])
+                selected = st.multiselect(
+                    col, uniques, default=current,
+                    key=f"flt_{col}", label_visibility="collapsed",
+                )
+                b1, b2 = st.columns(2)
+                with b1:
+                    if st.button("Apply", key=f"apply_{col}", type="primary", width='stretch'):
+                        if selected:
+                            col_filters[col] = selected
+                        else:
+                            col_filters.pop(col, None)
+                        st.session_state.col_filters = col_filters
+                        st.rerun()
+                with b2:
+                    if st.button("Clear", key=f"clear_{col}", width='stretch'):
+                        col_filters.pop(col, None)
+                        st.session_state.col_filters = col_filters
+                        st.rerun()
+
+    # Apply column filters to the view
+    for col, vals in col_filters.items():
+        if not vals:
+            continue
+        if col == "COMPLETED":
+            wanted = [v == "True" for v in vals]
+            view = view[view["COMPLETED"].astype(bool).isin(wanted)]
+        else:
+            view = view[view[col].fillna("").astype(str).isin(vals)]
+
     col_cfg = {
         "CLIENT":          st.column_config.TextColumn("CLIENT",          disabled=True, width="medium"),
         "JOB":             st.column_config.TextColumn("JOB",             width="large"),
