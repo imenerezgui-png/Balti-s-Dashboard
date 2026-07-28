@@ -713,18 +713,14 @@ with tab_plan:
 
     editor_df = _prep_editor_df(view[DISPLAY_COLS].reset_index(drop=True))
 
-    edited = st.data_editor(
+    edited_df = st.data_editor(
         editor_df,
         column_config=col_cfg,
         width='stretch',
         num_rows="fixed",
         hide_index=True,
         key="data_editor",
-        on_select="rerun",
-        selection_mode="single-row",
     )
-    edited_df = edited.data
-    selected_rows = edited.selection.rows
 
     # ── Action buttons ───────────────────────────────────────────────────────
     btn_cols = st.columns([1, 1.6, 1.6, 3])
@@ -768,22 +764,29 @@ with tab_plan:
             save_data(df)
             st.rerun()
 
-    # ── Debrief panel (appears when a row is clicked) ───────────────────────
-    if selected_rows:
-        sel_view_idx = selected_rows[0]
-        orig_idx     = view.index[sel_view_idx]
-        row          = df.loc[orig_idx]
-        existing     = _parse_debriefs(row["DEBRIEF"])
-        count        = len(existing)
+    # ── Debrief panel ────────────────────────────────────────────────────────────
+    st.markdown('<div class="section-title">Debrief Manager</div>', unsafe_allow_html=True)
+
+    active = df[(df["CLIENT"].fillna("") != "") | (df["JOB"].fillna("") != "")].copy()
+    if len(active) == 0:
+        st.info("No jobs yet.")
+    else:
+        active["_label"] = active["CLIENT"].fillna("") + "  —  " + active["JOB"].fillna("")
+        job_labels = active["_label"].tolist()
+        sel_label  = st.selectbox("Select a job to manage its debriefs", job_labels, key="debrief_job_sel")
+        sel_row    = active[active["_label"] == sel_label].iloc[0]
+        orig_idx   = sel_row.name
+        existing   = _parse_debriefs(sel_row["DEBRIEF"])
+        count      = len(existing)
 
         st.markdown(
-            f'<div style="margin:1rem 0 0.6rem 0;padding:0.7rem 1.2rem;'
+            f'<div style="margin:0.4rem 0 0.9rem 0;padding:0.7rem 1.2rem;'
             f'background:linear-gradient(90deg,#1a0508,#1e1e1e);'
             f'border:1px solid #2e2e2e;border-left:3px solid {RED};border-radius:10px;">'
             f'<span style="color:{DIM};font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;">'
             f'Selected job</span><br>'
             f'<span style="font-weight:700;font-size:1rem;color:{TEXT};">'
-            f'{row["CLIENT"]}  —  {row["JOB"]}</span>'
+            f'{sel_row["CLIENT"]}  —  {sel_row["JOB"]}</span>'
             f'<span style="float:right;color:{RED};font-weight:800;font-size:1.1rem;">'
             f'{count} debrief{"s" if count != 1 else ""}</span></div>',
             unsafe_allow_html=True,
@@ -802,9 +805,9 @@ with tab_plan:
                 sel_i   = options.index(sel_opt)
                 current = existing[sel_i]
                 try:
-                    dt_obj   = datetime.strptime(current[:16], "%Y-%m-%d %H:%M")
-                    init_d   = dt_obj.date()
-                    init_t   = dt_obj.time()
+                    dt_obj = datetime.strptime(current[:16], "%Y-%m-%d %H:%M")
+                    init_d = dt_obj.date()
+                    init_t = dt_obj.time()
                 except ValueError:
                     init_d, init_t = None, None
 
@@ -832,8 +835,6 @@ with tab_plan:
                 save_data(df)
                 st.success(f"Debrief #{len(existing)} logged!")
                 st.rerun()
-    else:
-        st.caption("📌  Click any row to manage its debriefs.")
 
     # ── Delete completed ──────────────────────────────────────────────────────
     with st.expander("🗑  Danger Zone", expanded=False):
