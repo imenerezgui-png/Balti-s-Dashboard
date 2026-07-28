@@ -1255,3 +1255,76 @@ with tab_viz:
     ))
     st.plotly_chart(fig_comp, width='stretch')
 
+    # ── Row 5: Debriefs per Client & Job ─────────────────────────────────────
+    st.markdown('<div class="section-title">Debriefs per Client & Job</div>', unsafe_allow_html=True)
+
+    deb_df = df.copy()
+    deb_df["debrief_count"] = deb_df["DEBRIEF"].apply(lambda v: len(_parse_debriefs(v)))
+    deb_df = deb_df[deb_df["debrief_count"] > 0].copy()
+
+    if len(deb_df) == 0:
+        st.info("No debriefs have been logged yet.")
+    else:
+        deb_df["label"] = deb_df["CLIENT"].fillna("?") + "  ·  " + deb_df["JOB"].fillna("?")
+        deb_df = deb_df.sort_values("debrief_count", ascending=True)
+
+        # Color-code by debrief count (warn when >= 3)
+        bar_colors = [
+            RED if c >= 3 else (AMBER if c == 2 else GREY_LT)
+            for c in deb_df["debrief_count"]
+        ]
+
+        fig_deb = go.Figure(go.Bar(
+            x=deb_df["debrief_count"],
+            y=deb_df["label"],
+            orientation="h",
+            marker=dict(color=bar_colors, line=dict(color=BG, width=0.5)),
+            text=deb_df["debrief_count"],
+            textposition="outside",
+            textfont=dict(color=TEXT, size=11),
+            hovertemplate="<b>%{y}</b><br>%{x} debrief(s)<extra></extra>",
+        ))
+        max_val = int(deb_df["debrief_count"].max())
+        # Reference line at 3 (warning threshold)
+        if max_val >= 3:
+            fig_deb.add_vline(
+                x=3, line_color=RED, line_dash="dash", line_width=1.5,
+                annotation_text="Warning threshold (3)",
+                annotation_font_color=RED, annotation_position="top right",
+            )
+        fig_deb.update_layout(**_plotly_layout(
+            height=max(280, len(deb_df) * 32),
+            showlegend=False,
+            xaxis=dict(
+                title="Number of debriefs",
+                showgrid=False,
+                color=DIM,
+                dtick=1,
+                range=[0, max_val + 1.5],
+            ),
+            yaxis=dict(showgrid=False, color=TEXT),
+        ))
+        st.plotly_chart(fig_deb, width='stretch')
+
+        # Summary metrics
+        total_debriefs = int(deb_df["debrief_count"].sum())
+        over_threshold = int((deb_df["debrief_count"] >= 3).sum())
+        avg_debriefs   = deb_df["debrief_count"].mean()
+
+        m1, m2, m3 = st.columns(3)
+        m1.markdown(
+            f'<div class="kpi-card"><div class="kpi-value" style="color:{RED}">'
+            f'{total_debriefs}</div><div class="kpi-label">Total Debriefs</div></div>',
+            unsafe_allow_html=True,
+        )
+        m2.markdown(
+            f'<div class="kpi-card"><div class="kpi-value" style="color:{AMBER}">'
+            f'{avg_debriefs:.1f}</div><div class="kpi-label">Avg / Job</div></div>',
+            unsafe_allow_html=True,
+        )
+        m3.markdown(
+            f'<div class="kpi-card"><div class="kpi-value" style="color:#e74c3c">'
+            f'{over_threshold}</div><div class="kpi-label">≥ 3 Debriefs</div></div>',
+            unsafe_allow_html=True,
+        )
+
