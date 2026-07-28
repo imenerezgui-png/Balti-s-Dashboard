@@ -247,8 +247,60 @@ div[data-testid="stButton"] > button[kind="secondary"] {{
 /* ── data editor ────────────────────────────────────────────────── */
 [data-testid="stDataEditor"] {{
     border: 1px solid #2a2a2a;
-    border-radius: 10px;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
     overflow: hidden;
+    margin-top: 0;
+}}
+
+/* ── Excel-style filter header row (fused with table) ───────────── */
+/* Target the container holding our marker span */
+[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) {{
+    background: linear-gradient(180deg, #241016 0%, #1a0509 100%);
+    border: 1px solid #2a2a2a;
+    border-bottom: 2px solid {RED_DARK};
+    border-radius: 10px 10px 0 0;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+}}
+/* Hide the marker itself */
+.filter-header-marker {{ display: none; }}
+/* Zero the gap between filter cells */
+[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="stHorizontalBlock"] {{
+    gap: 0 !important;
+}}
+/* Column dividers between filter cells */
+[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="column"] {{
+    padding: 0 !important;
+    border-right: 1px solid #2a2a2a;
+}}
+[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="column"]:last-child {{
+    border-right: none;
+}}
+/* Style the popover buttons to look like flat header cells */
+[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="stPopover"] > div > button {{
+    background: transparent !important;
+    color: {TEXT} !important;
+    border: none !important;
+    border-radius: 0 !important;
+    font-size: 0.7rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+    padding: 0.75rem 0.5rem !important;
+    box-shadow: none !important;
+    min-height: 44px !important;
+    width: 100% !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    justify-content: flex-start !important;
+}}
+[data-testid="stVerticalBlock"]:has(> div > .filter-header-marker) [data-testid="stPopover"] > div > button:hover {{
+    background: rgba(230, 57, 70, 0.18) !important;
+    color: {RED} !important;
 }}
 
 /* ── expander ───────────────────────────────────────────────────── */
@@ -690,69 +742,67 @@ with tab_plan:
 
     DISPLAY_COLS = ["CLIENT", "JOB"] + EDITABLE_COLS + ["COMPLETED"]
 
-    # ── Excel-style column filters ──────────────────────────────────────────
+    # ── Excel-style column filters (header-attached) ────────────────────────
     if "col_filters" not in st.session_state:
         st.session_state.col_filters = {}
     col_filters = st.session_state.col_filters
-
     active_filter_count = sum(1 for v in col_filters.values() if v)
-    filter_hdr_c1, filter_hdr_c2 = st.columns([6, 1])
-    with filter_hdr_c1:
-        st.markdown(
-            f'<div style="color:{DIM};font-size:0.72rem;letter-spacing:2.5px;'
-            f'text-transform:uppercase;margin:0.2rem 0 0.4rem 0;">'
-            f'▾ Column Filters '
-            f'<span style="color:{RED};font-weight:700;">'
-            f'{("(" + str(active_filter_count) + " active)") if active_filter_count else ""}'
-            f'</span></div>',
-            unsafe_allow_html=True,
-        )
-    with filter_hdr_c2:
-        if active_filter_count and st.button("Clear all", key="clr_all_filters", width='stretch'):
-            st.session_state.col_filters = {}
-            st.rerun()
 
-    # Build filter row: one popover per column
-    filter_cols = st.columns(len(DISPLAY_COLS))
-    for i, col in enumerate(DISPLAY_COLS):
-        with filter_cols[i]:
-            active = col in col_filters and col_filters[col]
-            arrow  = "🔻" if active else "▽"
-            short  = col.replace(" ", "\u00a0")[:12]
-            label  = f"{arrow} {short}"
-            with st.popover(label, width='stretch'):
-                # unique values in this column
-                series = df[col].fillna("").astype(str)
-                uniques = sorted({v for v in series if v.strip() not in ("", "None", "nan", "NaT")})
-                if col == "COMPLETED":
-                    uniques = ["True", "False"]
+    # Tiny "clear all" bar (only if there are active filters)
+    if active_filter_count:
+        c1, _, c3 = st.columns([5, 4, 1.5])
+        with c1:
+            st.markdown(
+                f'<div style="color:{RED};font-size:0.72rem;letter-spacing:2px;'
+                f'text-transform:uppercase;margin:0.2rem 0;font-weight:700;">'
+                f'● {active_filter_count} filter{"s" if active_filter_count != 1 else ""} active</div>',
+                unsafe_allow_html=True,
+            )
+        with c3:
+            if st.button("Clear all", key="clr_all_filters", width='stretch'):
+                st.session_state.col_filters = {}
+                st.rerun()
 
-                # search box for long lists
-                if len(uniques) > 8:
-                    q = st.text_input("Search", key=f"srch_{col}", label_visibility="collapsed",
-                                       placeholder="Search...")
-                    if q:
-                        uniques = [u for u in uniques if q.lower() in u.lower()]
+    # Filter row: wrapped in a container we can target via CSS :has(.marker)
+    with st.container():
+        st.markdown('<span class="filter-header-marker"></span>', unsafe_allow_html=True)
+        filter_cols = st.columns(len(DISPLAY_COLS))
+        for i, col in enumerate(DISPLAY_COLS):
+            with filter_cols[i]:
+                active = col in col_filters and col_filters[col]
+                arrow  = "▼" if active else "▽"
+                label  = f"{col}  {arrow}"
+                with st.popover(label, width='stretch'):
+                    series = df[col].fillna("").astype(str)
+                    uniques = sorted({v for v in series if v.strip() not in ("", "None", "nan", "NaT")})
+                    if col == "COMPLETED":
+                        uniques = ["True", "False"]
 
-                current = col_filters.get(col, [])
-                selected = st.multiselect(
-                    col, uniques, default=current,
-                    key=f"flt_{col}", label_visibility="collapsed",
-                )
-                b1, b2 = st.columns(2)
-                with b1:
-                    if st.button("Apply", key=f"apply_{col}", type="primary", width='stretch'):
-                        if selected:
-                            col_filters[col] = selected
-                        else:
+                    if len(uniques) > 8:
+                        q = st.text_input("Search", key=f"srch_{col}", label_visibility="collapsed",
+                                           placeholder="Search...")
+                        if q:
+                            uniques = [u for u in uniques if q.lower() in u.lower()]
+
+                    current = col_filters.get(col, [])
+                    selected = st.multiselect(
+                        col, uniques, default=current,
+                        key=f"flt_{col}", label_visibility="collapsed",
+                    )
+                    b1, b2 = st.columns(2)
+                    with b1:
+                        if st.button("Apply", key=f"apply_{col}", type="primary", width='stretch'):
+                            if selected:
+                                col_filters[col] = selected
+                            else:
+                                col_filters.pop(col, None)
+                            st.session_state.col_filters = col_filters
+                            st.rerun()
+                    with b2:
+                        if st.button("Clear", key=f"clear_{col}", width='stretch'):
                             col_filters.pop(col, None)
-                        st.session_state.col_filters = col_filters
-                        st.rerun()
-                with b2:
-                    if st.button("Clear", key=f"clear_{col}", width='stretch'):
-                        col_filters.pop(col, None)
-                        st.session_state.col_filters = col_filters
-                        st.rerun()
+                            st.session_state.col_filters = col_filters
+                            st.rerun()
 
     # Apply column filters to the view
     for col, vals in col_filters.items():
