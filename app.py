@@ -5,6 +5,7 @@ Black / Red / Grey gradient theme.
 
 from __future__ import annotations
 
+import io
 import json
 import uuid
 from datetime import date, datetime
@@ -394,6 +395,72 @@ def save_data(df: pd.DataFrame) -> None:
 
 def df_to_json_bytes(df: pd.DataFrame) -> bytes:
     return df.to_json(orient="records", indent=2, force_ascii=False).encode("utf-8")
+
+
+def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
+    """Export the planning DataFrame as a styled xlsx file (bytes)."""
+    export_cols = ["CLIENT", "JOB"] + EDITABLE_COLS + ["COMPLETED"]
+    out = df.copy()
+    # keep only expected columns and reset order
+    for c in export_cols:
+        if c not in out.columns:
+            out[c] = ""
+    out = out[export_cols].copy()
+    # DEBRIEF: pretty numbered format
+    if "DEBRIEF" in out.columns:
+        out["DEBRIEF"] = out["DEBRIEF"].apply(_debrief_display)
+    # % as int
+    if "% D'AVANCEMENT" in out.columns:
+        out["% D'AVANCEMENT"] = pd.to_numeric(out["% D'AVANCEMENT"], errors="coerce").fillna(0).astype(int)
+    # replace None/NaN with empty
+    out = out.fillna("")
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        out.to_excel(writer, sheet_name="PLANNING TEAM", index=False)
+        ws = writer.sheets["PLANNING TEAM"]
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        # Header styling (black/red)
+        hdr_fill = PatternFill(start_color="1A0508", end_color="1A0508", fill_type="solid")
+        hdr_font = Font(name="Segoe UI", size=10, bold=True, color="FFFFFF")
+        thin_border = Border(
+            left=Side(style="thin", color="333333"),
+            right=Side(style="thin", color="333333"),
+            top=Side(style="thin", color="333333"),
+            bottom=Side(style="thin", color="9B1D26"),
+        )
+        for cell in ws[1]:
+            cell.fill = hdr_fill
+            cell.font = hdr_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = thin_border
+
+        # Data styling
+        data_font = Font(name="Segoe UI", size=10)
+        alt_fill = PatternFill(start_color="F5F5F5", end_color="F5F5F5", fill_type="solid")
+        wrap_align = Alignment(vertical="center", wrap_text=True)
+        for row_idx in range(2, ws.max_row + 1):
+            for cell in ws[row_idx]:
+                cell.font = data_font
+                cell.alignment = wrap_align
+            if row_idx % 2 == 0:
+                for cell in ws[row_idx]:
+                    cell.fill = alt_fill
+
+        # Column widths
+        widths = {
+            "A": 16, "B": 30, "C": 18, "D": 18, "E": 14, "F": 14, "G": 22,
+            "H": 14, "I": 14, "J": 14, "K": 14, "L": 14, "M": 30, "N": 12,
+        }
+        for col_letter, w in widths.items():
+            ws.column_dimensions[col_letter].width = w
+
+        ws.row_dimensions[1].height = 32
+        ws.freeze_panes = "C2"   # freeze CLIENT + JOB
+
+    buf.seek(0)
+    return buf.getvalue()
 
 
 def _parse_debriefs(v) -> list[str]:
@@ -867,23 +934,32 @@ with tab_plan:
 
     edited_df = pd.DataFrame(grid_response["data"])
 
+    # Persist edits into df BEFORE building the Excel download
+    _orig_indices = view.index.tolist()
+    for _i, _orig_idx in enumerate(_orig_indices):
+        if _i >= len(edited_df):
+            break
+        for _col in DISPLAY_COLS:
+            _val = edited_df.iloc[_i][_col]
+            if isinstance(_val, date):
+                _val = _val.isoformat()
+            df.at[_orig_idx, _col] = _val
+    st.session_state.df = df
+
     # ── Action buttons ───────────────────────────────────────────────────────
-    btn_cols = st.columns([1, 1.6, 1.6, 3])
+    btn_cols = st.columns([1.4, 1.6, 1.6, 2.4])
 
     with btn_cols[0]:
-        if st.button("💾  Save", type="primary", width='stretch'):
-            orig_indices = view.index.tolist()
-            for i, orig_idx in enumerate(orig_indices):
-                for col in DISPLAY_COLS:
-                    val = edited_df.iloc[i][col]
-                    # convert date objects back to strings
-                    if isinstance(val, date):
-                        val = val.isoformat()
-                    df.at[orig_idx, col] = val
-            st.session_state.df = df
-            save_data(df)
-            st.success("Changes saved!")
-            st.rerun()
+        st.download_button(
+            "💾  Save as Excel",
+            data=df_to_excel_bytes(df),
+            file_name=f"planning_{date.today().isoformat()}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            width='stretch',
+            on_click=lambda: save_data(st.session_state.df),
+            key="btn_save_xlsx",
+        )
 
     with btn_cols[1]:
         if st.button("✅  Mark All as Completed", width='stretch'):
