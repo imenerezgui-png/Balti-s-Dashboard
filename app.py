@@ -703,25 +703,24 @@ with tab_plan:
     # Build grid options
     gob = GridOptionsBuilder.from_dataframe(grid_df)
 
-    # Global defaults: sortable, resizable, editable, text filter with floating row
+    # Global defaults: sortable, resizable, editable, Excel-style Set filter
     gob.configure_default_column(
         editable=True,
         sortable=True,
         resizable=True,
-        filter="agTextColumnFilter",   # community-edition filter
-        floatingFilter=True,             # <-- filter row directly under each header
-        filterParams={"buttons": ["reset", "apply"], "closeOnApply": True},
+        filter="agSetColumnFilter",      # <-- Excel-style checkbox list (Enterprise)
+        floatingFilter=True,               # small live-search input under each header
         menuTabs=["filterMenuTab", "generalMenuTab", "columnsMenuTab"],
     )
 
     # Per-column overrides
     gob.configure_column("CLIENT", editable=False, pinned="left", width=140,
-                          filter="agTextColumnFilter")
-    gob.configure_column("JOB", width=220, filter="agTextColumnFilter")
-    gob.configure_column("TEAM CREA 1", width=140, filter="agTextColumnFilter")
-    gob.configure_column("TEAM CREA 2", width=140, filter="agTextColumnFilter")
-    gob.configure_column("ACCOUNTS", width=110, filter="agTextColumnFilter")
-    gob.configure_column("BRIEFING CRA", width=125, filter="agDateColumnFilter")
+                          filter="agSetColumnFilter")
+    gob.configure_column("JOB", width=220, filter="agSetColumnFilter")
+    gob.configure_column("TEAM CREA 1", width=140, filter="agSetColumnFilter")
+    gob.configure_column("TEAM CREA 2", width=140, filter="agSetColumnFilter")
+    gob.configure_column("ACCOUNTS", width=110, filter="agSetColumnFilter")
+    gob.configure_column("BRIEFING CRA", width=125, filter="agSetColumnFilter")
     gob.configure_column(
         "DEBRIEF",
         editable=False,
@@ -740,10 +739,10 @@ with tab_plan:
             }
         """),
     )
-    gob.configure_column("PIT STOP", width=140, filter="agTextColumnFilter")
+    gob.configure_column("PIT STOP", width=140, filter="agSetColumnFilter")
     gob.configure_column(
         "% D'AVANCEMENT", width=120, type=["numericColumn"],
-        filter="agNumberColumnFilter",
+        filter="agSetColumnFilter",
         cellStyle=JsCode("""
             function(params) {
                 const v = params.value;
@@ -755,8 +754,8 @@ with tab_plan:
             }
         """),
     )
-    gob.configure_column("DEADLINE", width=125, filter="agDateColumnFilter")
-    gob.configure_column("PREZ CLIENT", width=125, filter="agDateColumnFilter")
+    gob.configure_column("DEADLINE", width=125, filter="agSetColumnFilter")
+    gob.configure_column("PREZ CLIENT", width=125, filter="agSetColumnFilter")
     gob.configure_column(
         "ETAT CREA", width=130,
         cellEditor="agSelectCellEditor",
@@ -810,6 +809,27 @@ with tab_plan:
             "background-color": "#1a1a1a !important",
             "color": "#f0f0f0 !important",
         },
+        ".ag-set-filter-list, .ag-virtual-list-viewport": {
+            "background-color": "#1a1a1a !important",
+        },
+        ".ag-set-filter-item": {
+            "color": "#f0f0f0 !important",
+            "padding": "4px 8px !important",
+        },
+        ".ag-set-filter-item:hover": {
+            "background-color": "rgba(230,57,70,0.15) !important",
+        },
+        ".ag-checkbox-input-wrapper.ag-checked::after": {
+            "color": f"{RED} !important",
+        },
+        ".ag-filter-apply-panel button": {
+            "background": f"linear-gradient(90deg, {RED_DARK}, {RED}) !important",
+            "color": "white !important",
+            "border": "none !important",
+            "padding": "5px 12px !important",
+            "border-radius": "6px !important",
+            "font-weight": "700 !important",
+        },
         ".ag-icon-menu, .ag-icon-filter": {
             "color": f"{RED} !important",
         },
@@ -837,6 +857,7 @@ with tab_plan:
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
+        enable_enterprise_modules=True,   # <-- enables agSetColumnFilter (Excel-style)
         theme="alpine-dark",
         custom_css=custom_css,
         height=520,
