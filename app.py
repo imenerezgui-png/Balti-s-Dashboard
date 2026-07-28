@@ -51,7 +51,7 @@ EDITABLE_COLS = [
     "% D'AVANCEMENT", "DEADLINE", "PREZ CLIENT",
     "ETAT CREA", "OBSERVATIONS",
 ]
-DATE_COLS = ["BRIEFING CRA", "DEBRIEF", "DEADLINE", "PREZ CLIENT"]
+DATE_COLS = ["BRIEFING CRA", "DEADLINE", "PREZ CLIENT"]
 ALL_COLS  = ["id", "CLIENT", "JOB"] + EDITABLE_COLS + ["COMPLETED"]
 
 ETAT_OPTIONS = ["EN COURS", "ATT BAT", "BAT OK", "COMPLETED", "ANNULÉ"]
@@ -395,6 +395,21 @@ def df_to_json_bytes(df: pd.DataFrame) -> bytes:
     return df.to_json(orient="records", indent=2, force_ascii=False).encode("utf-8")
 
 
+def _parse_debriefs(v) -> list[str]:
+    """Return list of debrief datetime strings from a semicolon-separated value."""
+    if not v or str(v).strip() in ("", "None", "nan", "NaT"):
+        return []
+    return [x.strip() for x in str(v).split(";") if x.strip()]
+
+
+def _debrief_display(v) -> str:
+    """Format debriefs as '#1: date | #2: date ...' for table display."""
+    items = _parse_debriefs(v)
+    if not items:
+        return ""
+    return "  |  ".join(f"#{i + 1}: {d}" for i, d in enumerate(items))
+
+
 def _prep_editor_df(df: pd.DataFrame) -> pd.DataFrame:
     """Convert date string columns to Python date objects for st.data_editor."""
     out = df.copy()
@@ -409,6 +424,9 @@ def _prep_editor_df(df: pd.DataFrame) -> pd.DataFrame:
             except ValueError:
                 return None
         out[col] = out[col].apply(to_date)
+    # Render DEBRIEF as numbered display string
+    if "DEBRIEF" in out.columns:
+        out["DEBRIEF"] = out["DEBRIEF"].apply(_debrief_display)
     if "% D'AVANCEMENT" in out.columns:
         out["% D'AVANCEMENT"] = pd.to_numeric(out["% D'AVANCEMENT"], errors="coerce").fillna(0).astype(int)
     if "COMPLETED" in out.columns:
@@ -615,7 +633,7 @@ with tab_plan:
                 new_brief_d = st.date_input("BRIEFING CRA", value=None, key="d_brief")
                 new_brief_t = st.time_input("Heure", value=None, key="t_brief", label_visibility="collapsed")
             with c7:
-                new_debrief_d = st.date_input("DEBRIEF", value=None, key="d_debrief")
+                new_debrief_d = st.date_input("DEBRIEF #1", value=None, key="d_debrief")
                 new_debrief_t = st.time_input("Heure", value=None, key="t_debrief", label_visibility="collapsed")
             with c8:
                 new_pit_d = st.date_input("PIT STOP", value=None, key="d_pit")
@@ -651,7 +669,7 @@ with tab_plan:
                     "TEAM CREA 2":     " / ".join(new_tc2_sel),
                     "ACCOUNTS":        " / ".join(new_acc_sel),
                     "BRIEFING CRA":    f"{new_brief_d} {new_brief_t}"   if new_brief_d  else None,
-                    "DEBRIEF":         f"{new_debrief_d} {new_debrief_t}" if new_debrief_d else None,
+                    "DEBRIEF":         f"{new_debrief_d} {new_debrief_t}" if new_debrief_d else "",
                     "PIT STOP":        f"{new_pit_d} {new_pit_t}"        if new_pit_d    else None,
                     "% D'AVANCEMENT":  int(new_pct),
                     "DEADLINE":        f"{new_dl_d} {new_dl_t}"          if new_dl_d     else None,
@@ -679,7 +697,7 @@ with tab_plan:
         "TEAM CREA 2":     st.column_config.TextColumn("TEAM CREA 2",     width="medium"),
         "ACCOUNTS":        st.column_config.TextColumn("ACCOUNTS",        width="small"),
         "BRIEFING CRA":    st.column_config.DateColumn("BRIEFING CRA"),
-        "DEBRIEF":         st.column_config.DateColumn("DEBRIEF"),
+        "DEBRIEF":         st.column_config.TextColumn("DEBRIEF", width="large", disabled=True),
         "PIT STOP":        st.column_config.TextColumn("PIT STOP",        width="medium"),
         "% D'AVANCEMENT":  st.column_config.ProgressColumn(
                                "% D'AVANCEMENT", min_value=0, max_value=100, format="%d%%"
@@ -745,6 +763,52 @@ with tab_plan:
             st.session_state.df = df
             save_data(df)
             st.rerun()
+
+    # ── Add Debrief ───────────────────────────────────────────────────────────
+    with st.expander("📋  Add Debrief", expanded=False):
+        active = df[(df["CLIENT"].fillna("") != "") | (df["JOB"].fillna("") != "")].copy()
+        active["_label"] = active["CLIENT"].fillna("") + "  —  " + active["JOB"].fillna("")
+        active["_count"] = active["DEBRIEF"].apply(lambda v: len(_parse_debriefs(v)))
+
+        if len(active) == 0:
+            st.info("No jobs yet.")
+        else:
+            job_labels = active["_label"].tolist()
+            sel_label  = st.selectbox("Select Job", job_labels, key="debrief_job_sel")
+            sel_row    = active[active["_label"] == sel_label].iloc[0]
+            count      = int(sel_row["_count"])
+
+            # Show existing debriefs
+            existing = _parse_debriefs(sel_row["DEBRIEF"])
+            if existing:
+                debrief_lines = "  \n".join(
+                    f"**#{i+1}** — {d}" for i, d in enumerate(existing)
+                )
+                st.markdown(
+                    f'<div style="background:#1a1a1a;border:1px solid #2e2e2e;border-left:3px solid #e63946;'
+                    f'border-radius:8px;padding:0.8rem 1rem;font-size:0.85rem;">'
+                    f'{debrief_lines.replace(chr(10), "<br>")}</div>',
+                    unsafe_allow_html=True,
+                )
+                if count >= 3:
+                    st.warning(f"⚠️ {count} debriefs logged — consider stopping further requests.")
+            else:
+                st.caption("No debriefs logged yet for this job.")
+
+            st.markdown(f"**Add Debrief #{count + 1}**")
+            dcol1, dcol2 = st.columns(2)
+            new_db_date = dcol1.date_input("Date", key="db_date")
+            new_db_time = dcol2.time_input("Heure", key="db_time")
+
+            if st.button(f"➕  Log Debrief #{count + 1}", type="primary"):
+                new_entry = f"{new_db_date} {new_db_time}"
+                orig_idx  = sel_row.name
+                updated   = existing + [new_entry]
+                df.at[orig_idx, "DEBRIEF"] = ";".join(updated)
+                st.session_state.df = df
+                save_data(df)
+                st.success(f"Debrief #{len(updated)} logged for '{sel_row['JOB']}'.")
+                st.rerun()
 
     # ── Delete completed ──────────────────────────────────────────────────────
     with st.expander("🗑  Danger Zone", expanded=False):
