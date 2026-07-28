@@ -840,7 +840,7 @@ with tab_plan:
         floatingFiltersHeight=34,
         suppressMovableColumns=False,
         animateRows=True,
-        # Row-level style: flag jobs whose deadline is within 3 days
+        # Row-level style: flag jobs whose deadline is within 3 days from today
         getRowStyle=JsCode("""
             function(params) {
                 if (!params.data) return null;
@@ -848,21 +848,13 @@ with tab_plan:
                 const dl = params.data['DEADLINE'];
                 if (!dl) return null;
                 const dlStr = String(dl).slice(0, 10);
-                const dlDate = new Date(dlStr);
+                const dlDate = new Date(dlStr + 'T00:00:00');
                 if (isNaN(dlDate.getTime())) return null;
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const diffDays = Math.floor((dlDate - today) / (1000 * 60 * 60 * 24));
-                if (diffDays < 0) {
-                    // Overdue: darker red
-                    return {
-                        'background': 'linear-gradient(90deg, rgba(155,29,38,0.55), rgba(155,29,38,0.35))',
-                        'color': '#ffffff',
-                        'font-weight': '600'
-                    };
-                }
-                if (diffDays <= 3) {
-                    // 3 days or less: bright red highlight
+                // Only upcoming deadlines within 3 days trigger the red highlight
+                if (diffDays >= 0 && diffDays <= 3) {
                     return {
                         'background': 'linear-gradient(90deg, rgba(230,57,70,0.55), rgba(230,57,70,0.30))',
                         'color': '#ffffff',
