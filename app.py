@@ -840,6 +840,38 @@ with tab_plan:
         floatingFiltersHeight=34,
         suppressMovableColumns=False,
         animateRows=True,
+        # Row-level style: flag jobs whose deadline is within 3 days
+        getRowStyle=JsCode("""
+            function(params) {
+                if (!params.data) return null;
+                if (params.data.COMPLETED === true || params.data.COMPLETED === 'true') return null;
+                const dl = params.data['DEADLINE'];
+                if (!dl) return null;
+                const dlStr = String(dl).slice(0, 10);
+                const dlDate = new Date(dlStr);
+                if (isNaN(dlDate.getTime())) return null;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const diffDays = Math.floor((dlDate - today) / (1000 * 60 * 60 * 24));
+                if (diffDays < 0) {
+                    // Overdue: darker red
+                    return {
+                        'background': 'linear-gradient(90deg, rgba(155,29,38,0.55), rgba(155,29,38,0.35))',
+                        'color': '#ffffff',
+                        'font-weight': '600'
+                    };
+                }
+                if (diffDays <= 3) {
+                    // 3 days or less: bright red highlight
+                    return {
+                        'background': 'linear-gradient(90deg, rgba(230,57,70,0.55), rgba(230,57,70,0.30))',
+                        'color': '#ffffff',
+                        'font-weight': '600'
+                    };
+                }
+                return null;
+            }
+        """),
     )
 
     grid_options = gob.build()
